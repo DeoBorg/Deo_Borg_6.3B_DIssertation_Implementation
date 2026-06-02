@@ -1,0 +1,26 @@
+# Virtual environment
+venv/
+
+# Dataset — all images, labels, raw frames, annotations
+dataset/
+
+# Raw videos
+Raw_Videos/
+
+dissertation_figures/
+find_clean_frames.py
+find_best_frames.py
+
+# Large zip files
+*.zip
+
+# Intermediate output frames (hundreds of jpgs, not needed on GitHub)
+outputs/annotated_frames/
+outputs/best_frames/
+outputs/clean_frames/
+
+# Pretrained base weights (downloadable from Ultralytics)
+yolov8n.pt
+
+.DS_Store
+**/.DS_Store
