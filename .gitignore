@@ -8,8 +8,6 @@ dataset/
 Raw_Videos/
 
 dissertation_figures/
-find_clean_frames.py
-find_best_frames.py
 
 # Large zip files
 *.zip

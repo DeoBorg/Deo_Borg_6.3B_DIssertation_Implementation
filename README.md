@@ -29,51 +29,10 @@ Video Input
 
 ---
 
-## Results
-
-| Component | Metric | Score |
-|---|---|---|
-| YOLOv8m (fine-tuned) | mAP@0.5 | 0.948 |
-| YOLOv8m (fine-tuned) | F1 | 0.929 |
-| LSTM Classifier | Mean Macro F1 (5-fold) | 0.31 ± 0.02 |
-| Temporal Stability | Mean Label Switch Rate | 0.090 |
-
----
-
-## Repository Structure
-
-```
-SecondImplementation/
-├── models/
-│   ├── best.pt               # Fine-tuned YOLOv8m weights
-│   └── lstm_best.pt          # Trained LSTM weights
-│
-├── outputs/
-│   ├── evaluation/           # Confusion matrices, charts, classification reports
-│   ├── predictions_cam1.csv  # Pipeline predictions — Camera 1
-│   ├── predictions_cam2.csv  # Pipeline predictions — Camera 2
-│   └── lstm_fold_results.csv # K-Fold cross-validation results
-│
-├── pipeline.py               # End-to-end inference pipeline
-├── train_lstm.py             # LSTM training with SMOTE + K-Fold
-├── build_sequences.py        # Feature extraction and sequence building
-├── evaluate.py               # Full evaluation and chart generation
-├── frame_extractor.py        # Extract frames from video at 1 FPS
-├── dataset_splitter.py       # Stratified train/val/test split
-├── generate_annotated_frames.py  # Generate annotated frame images
-├── find_best_frames.py       # Find most interesting frames for analysis
-├── find_clean_frames.py      # Find cleanest frames for dissertation figures
-├── manual_behaviour_label.py # Manual behaviour annotation tool
-└── regenerate_figure.py      # Regenerate specific dissertation figures
-```
-
----
-
 ## Setup & Installation
 
 ### Requirements
 - Python 3.10+
-- macOS (Apple Silicon MPS) or Linux (CUDA GPU recommended for training)
 
 ### 1. Clone the repository
 ```bash
@@ -163,7 +122,7 @@ python evaluate.py
 
 The dataset used in this project is not included in this repository due to privacy concerns (video footage of real participants). It consisted of:
 
-- **11 participants** recorded for ~80 minutes across 2 cameras
+- **11 participants** recorded for ~45 minutes across 2 cameras
 - **4,804 frames** extracted at 1 FPS
 - **2,397 annotated images** for object detection (Person, Laptop, Phone)
 - **1,595 behaviour labels** across 4 classes (manually annotated)
