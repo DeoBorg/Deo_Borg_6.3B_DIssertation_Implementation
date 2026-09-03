@@ -1,16 +1,3 @@
-"""
-Runs the complete smart monitoring system on a video file:
-    1. YOLOv8 — detects Person, Laptop, Phone per frame
-    2. ByteTrack — assigns consistent track IDs per person
-    3. BlazePose — extracts pose features per tracked person
-    4. LSTM — classifies behaviour using last 5 frames
-    5. Saves predictions to CSV + annotated video
-
-Usage:
-    python pipeline.py --video Raw_Videos/CAMERA_1_VIDEO.mp4 --output outputs/predictions_cam1.csv
-    python pipeline.py --video Raw_Videos/CAMERA_2_VIDEO.mov --output outputs/predictions_cam2.csv
-"""
-
 import cv2
 import torch
 import numpy as np
@@ -34,11 +21,11 @@ HIDDEN_SIZE     = 128
 NUM_LAYERS      = 2
 DROPOUT         = 0.4
 
-PHONE_PROXIMITY_PX  = 200
+PHONE_PROXIMITY_PX = 200
 LAPTOP_PROXIMITY_PX = 350
 
-CLASS_PERSON = 1
-CLASS_LAPTOP = 0
+CLASS_PERSON = 0
+CLASS_LAPTOP = 1
 CLASS_PHONE  = 2
 
 LABEL_MAP = {
@@ -58,7 +45,6 @@ LABEL_COLOURS = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-# ── LSTM Model ───────────────────────────────────────────────────────────────
 class BehaviourLSTM(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -78,7 +64,6 @@ class BehaviourLSTM(torch.nn.Module):
         return self.fc(out)
 
 
-# ── Pose Helpers ─────────────────────────────────────────────────────────────
 mp_pose = mp.solutions.pose
 pose    = mp_pose.Pose(static_image_mode=False, model_complexity=1,
                        min_detection_confidence=0.4)
@@ -173,56 +158,49 @@ def build_feature_vector(lm, crop_shape, person_box,
     ], dtype=np.float32)
 
 
-def draw_annotations(frame, person_boxes, track_ids, labels, phone_boxes, laptop_boxes):
-    """Draw bounding boxes and behaviour labels on frame."""
+def draw_annotations(frame, person_boxes, track_ids, labels,
+                     phone_boxes, laptop_boxes):
     annotated = frame.copy()
 
-    # Draw phone boxes
     for pb in phone_boxes:
         x1, y1, x2, y2 = map(int, pb)
         cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 220), 2)
         cv2.putText(annotated, "Phone", (x1, y1 - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 220), 1)
 
-    # Draw laptop boxes
     for lb in laptop_boxes:
         x1, y1, x2, y2 = map(int, lb)
         cv2.rectangle(annotated, (x1, y1), (x2, y2), (220, 150, 0), 2)
         cv2.putText(annotated, "Laptop", (x1, y1 - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (220, 150, 0), 1)
 
-    # Draw person boxes with behaviour labels
     for box, track_id, label in zip(person_boxes, track_ids, labels):
         x1, y1, x2, y2 = map(int, box)
         colour = LABEL_COLOURS.get(label, LABEL_COLOURS['Unknown'])
         cv2.rectangle(annotated, (x1, y1), (x2, y2), colour, 2)
-
         text = f"ID{track_id}: {label}"
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
-        cv2.rectangle(annotated, (x1, y1 - th - 8), (x1 + tw + 4, y1), colour, -1)
+        cv2.rectangle(annotated, (x1, y1 - th - 8),
+                      (x1 + tw + 4, y1), colour, -1)
         cv2.putText(annotated, text, (x1 + 2, y1 - 4),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
     return annotated
 
 
-def run_pipeline(video_path, output_csv, output_video=None, sample_rate=1):
-    """
-    Run the full inference pipeline on a video.
+def run_pipeline(video_path, output_csv, output_video=None,
+                 sample_rate=1, max_seconds=None, start_seconds=0):
 
-    Args:
-        video_path   : path to input video
-        output_csv   : path to save predictions CSV
-        output_video : path to save annotated video (None = skip)
-        sample_rate  : process every Nth frame (1 = every frame)
-    """
     print(f"\n=== Smart Monitoring Pipeline ===")
-    print(f"  Video      : {video_path}")
-    print(f"  Output CSV : {output_csv}")
-    print(f"  Sample rate: every {sample_rate} frame(s)\n")
+    print(f"  Video        : {video_path}")
+    print(f"  Output CSV   : {output_csv}")
+    print(f"  Sample rate  : every {sample_rate} frame(s)")
+    if start_seconds > 0:
+        print(f"  Start at     : {start_seconds}s")
+    if max_seconds:
+        print(f"  Max duration : {max_seconds}s")
 
-    # ── Load models ───────────────────────────────────────────────────────────
-    print("  Loading models...")
+    print("\n  Loading models...")
     yolo    = YOLO(YOLO_MODEL_PATH)
     tracker = sv.ByteTrack()
 
@@ -235,31 +213,34 @@ def run_pipeline(video_path, output_csv, output_video=None, sample_rate=1):
     lstm.load_state_dict(torch.load(LSTM_MODEL_PATH, map_location=device))
     lstm.eval()
 
-    # ── Open video ────────────────────────────────────────────────────────────
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"[ERROR] Cannot open video: {video_path}")
         return
 
+    if start_seconds > 0:
+        cap.set(cv2.CAP_PROP_POS_MSEC, start_seconds * 1000)
+        print(f"  Skipping to {start_seconds}s")
+
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps          = cap.get(cv2.CAP_PROP_FPS)
     width        = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height       = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    print(f"  Video info : {width}×{height} @ {fps:.1f}fps, {total_frames} frames")
+    max_frames   = int(max_seconds * fps) if max_seconds else total_frames
+    print(f"  Video info   : {width}x{height} @ {fps:.1f}fps")
 
-    # ── Optional video writer ─────────────────────────────────────────────────
     writer = None
     if output_video:
         os.makedirs(os.path.dirname(output_video) or '.', exist_ok=True)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        writer = cv2.VideoWriter(output_video, fourcc, fps, (width, height))
-        print(f"  Output video: {output_video}")
+        writer = cv2.VideoWriter(output_video, fourcc, fps, (640, 360))
+        print(f"  Output video : {output_video}")
 
-    # ── Feature buffers per track ─────────────────────────────────────────────
-    feature_buffers = defaultdict(list)   # track_id → list of feature vectors
+    feature_buffers = defaultdict(list)
     results_log     = []
     frame_num       = 0
     processed       = 0
+    last_annotated  = None
 
     print(f"\n  Processing frames...")
 
@@ -267,21 +248,25 @@ def run_pipeline(video_path, output_csv, output_video=None, sample_rate=1):
         ret, frame = cap.read()
         if not ret:
             break
+        frame = cv2.resize(frame, (640, 360))
 
         frame_num += 1
 
-        # Skip frames based on sample rate
+        if frame_num > max_frames:
+            break
+
         if frame_num % sample_rate != 0:
             if writer:
-                writer.write(frame)
+                if last_annotated is not None:
+                    writer.write(last_annotated)
+                else:
+                    writer.write(frame)
             continue
 
         processed += 1
 
-        # ── Stage 1: YOLOv8 Detection ─────────────────────────────────────────
         det_raw  = yolo(frame, verbose=False)[0]
         dets     = sv.Detections.from_ultralytics(det_raw)
-
         persons  = dets[dets.class_id == CLASS_PERSON]
         phones   = dets[dets.class_id == CLASS_PHONE]
         laptops  = dets[dets.class_id == CLASS_LAPTOP]
@@ -289,16 +274,17 @@ def run_pipeline(video_path, output_csv, output_video=None, sample_rate=1):
         phone_boxes  = phones.xyxy.tolist()  if len(phones)  > 0 else []
         laptop_boxes = laptops.xyxy.tolist() if len(laptops) > 0 else []
 
-        # ── Stage 2: ByteTrack ────────────────────────────────────────────────
         persons = tracker.update_with_detections(persons)
 
         if len(persons) == 0:
             if writer:
-                writer.write(frame)
+                if last_annotated is not None:
+                    writer.write(last_annotated)
+                else:
+                    writer.write(frame)
             continue
 
-        # ── Stage 3: BlazePose per person ─────────────────────────────────────
-        track_ids   = persons.tracker_id.tolist()
+        track_ids         = persons.tracker_id.tolist()
         person_boxes_list = persons.xyxy.tolist()
 
         all_lms  = []
@@ -318,7 +304,6 @@ def run_pipeline(video_path, output_csv, output_video=None, sample_rate=1):
             else:
                 all_yaws.append(None)
 
-        # ── Stage 4: Feature vectors ──────────────────────────────────────────
         frame_labels = []
 
         for i, (track_id, pb, lm) in enumerate(
@@ -337,7 +322,6 @@ def run_pipeline(video_path, output_csv, output_video=None, sample_rate=1):
 
             feature_buffers[track_id].append(fv)
 
-            # ── Stage 5: LSTM Classification ──────────────────────────────────
             if len(feature_buffers[track_id]) >= SEQUENCE_LENGTH:
                 seq = np.array(
                     feature_buffers[track_id][-SEQUENCE_LENGTH:],
@@ -366,31 +350,29 @@ def run_pipeline(video_path, output_csv, output_video=None, sample_rate=1):
                 'bbox_y2':         int(pb[3]),
             })
 
-        # ── Annotate frame ────────────────────────────────────────────────────
         if writer:
-            annotated = draw_annotations(
+            annotated      = draw_annotations(
                 frame, person_boxes_list, track_ids,
                 frame_labels, phone_boxes, laptop_boxes
             )
+            last_annotated = annotated
             writer.write(annotated)
 
-        # Progress
-        if processed % 100 == 0:
-            pct = frame_num / total_frames * 100
-            print(f"  Frame {frame_num}/{total_frames} ({pct:.1f}%) — "
+        if processed % 50 == 0:
+            pct = frame_num / max_frames * 100
+            print(f"  Frame {frame_num}/{max_frames} ({pct:.1f}%) — "
                   f"{len(persons)} persons tracked")
 
     cap.release()
     if writer:
         writer.release()
 
-    # ── Save predictions ──────────────────────────────────────────────────────
     os.makedirs(os.path.dirname(output_csv) or '.', exist_ok=True)
     df = pd.DataFrame(results_log)
     df.to_csv(output_csv, index=False)
 
-    print(f"\n  ✓ Processed {processed} frames")
-    print(f"  ✓ Predictions saved to {output_csv}")
+    print(f"\n  Processed {processed} frames")
+    print(f"  Predictions saved to {output_csv}")
 
     if len(df) > 0:
         print(f"\n  Prediction distribution:")
@@ -407,22 +389,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Smart Academic Monitoring — Inference Pipeline"
     )
-    parser.add_argument(
-        "--video", required=True,
-        help="Path to input video file"
-    )
-    parser.add_argument(
-        "--output", default="outputs/predictions.csv",
-        help="Path to output predictions CSV"
-    )
-    parser.add_argument(
-        "--annotated_video", default=None,
-        help="Path to save annotated video (optional, slow)"
-    )
-    parser.add_argument(
-        "--sample_rate", type=int, default=1,
-        help="Process every Nth frame (default=1, use 30 for 1fps from 30fps video)"
-    )
+    parser.add_argument("--video",           required=True)
+    parser.add_argument("--output",          default="outputs/predictions.csv")
+    parser.add_argument("--annotated_video", default=None)
+    parser.add_argument("--sample_rate",     type=int,   default=1)
+    parser.add_argument("--max_seconds",     type=float, default=None,
+                        help="Only process first N seconds after start point")
+    parser.add_argument("--start_seconds",   type=float, default=0,
+                        help="Skip to this timestamp before processing")
     args = parser.parse_args()
 
     run_pipeline(
@@ -430,4 +404,6 @@ if __name__ == "__main__":
         output_csv    = args.output,
         output_video  = args.annotated_video,
         sample_rate   = args.sample_rate,
+        max_seconds   = args.max_seconds,
+        start_seconds = args.start_seconds,
     )

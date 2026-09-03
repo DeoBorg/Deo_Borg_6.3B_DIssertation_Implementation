@@ -1,10 +1,8 @@
 """
 dataset_splitter.py
 -------------------
-Splits the Roboflow object detection dataset into train/val/test
+Splits the Roboflow object detection dataset
 using a stratified approach based on class presence in each image.
-
-Split ratios: 70% train / 15% val / 15% test
 
 Also prints a summary of class distribution across splits.
 

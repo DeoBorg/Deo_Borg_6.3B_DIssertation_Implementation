@@ -12,13 +12,15 @@ dissertation_figures/
 # Large zip files
 *.zip
 
-# Intermediate output frames (hundreds of jpgs, not needed on GitHub)
-outputs/annotated_frames/
-outputs/best_frames/
-outputs/clean_frames/
+# 2nd Dataset — frames, videos, and annotations
+2nd-Dataset/
+
+# All outputs
+outputs/
 
 # Pretrained base weights (downloadable from Ultralytics)
 yolov8n.pt
+models/
 
 .DS_Store
 **/.DS_Store

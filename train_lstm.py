@@ -1,15 +1,3 @@
-"""
-  - SMOTE oversampling to balance minority classes
-  - Aggressive class weights (squared inverse frequency)
-  - Higher dropout for regularisation
-  - More epochs with patience-based early stopping
-  - Per-fold best model saved based on macro F1 not accuracy
-
-Usage:
-    pip install imbalanced-learn
-    python train_lstm.py
-"""
-
 import torch
 import torch.nn as nn
 import numpy as np
@@ -134,9 +122,7 @@ def apply_smote(X_train, y_train):
 def train_one_fold(X_train, y_train, X_val, y_val, device, fold):
     """Train with SMOTE + aggressive weights + early stopping on macro F1."""
 
-    # Apply SMOTE to training set only
-    print(f"  Applying SMOTE...")
-    X_train_sm, y_train_sm = apply_smote(X_train, y_train)
+    X_train_sm, y_train_sm = X_train, y_train
 
     train_ds = TensorDataset(
         torch.tensor(X_train_sm, dtype=torch.float32),

@@ -17,8 +17,8 @@ from ultralytics import YOLO
 from collections import defaultdict
 
 # ── CONFIG ───────────────────────────────────────────────────────────────────
-FRAMES_CAM1      = "dataset/raw_frames/camera_1"
-FRAMES_CAM2      = "dataset/raw_frames/camera_2"
+FRAMES_CAM1      = "2nd-Dataset/frames/angle1"
+FRAMES_CAM2      = "2nd-Dataset/frames/angle2"
 GROUND_TRUTH_CSV = "dataset/ground_truth_labels.csv"
 YOLO_MODEL       = "models/best.pt"
 OUTPUT_X         = "dataset/sequences_X.npy"
@@ -138,7 +138,10 @@ def build_feature_vector(lm, crop_shape, person_box,
 
 
 def get_frame_path(frame_id, camera_id):
-    cam_dir = FRAMES_CAM1 if camera_id == 'cam1' else FRAMES_CAM2
+    if camera_id == 'angle1':
+        cam_dir = FRAMES_CAM1
+    else:
+        cam_dir = FRAMES_CAM2
     path = os.path.join(cam_dir, f"frame_{int(frame_id):05d}.jpg")
     return path if os.path.exists(path) else None
 
