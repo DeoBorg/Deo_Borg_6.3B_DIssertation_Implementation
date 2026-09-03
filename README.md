@@ -110,12 +110,6 @@ python pipeline.py \
   --sample_rate 10
 ```
 
-### Step 8 — Evaluate
-```bash
-python evaluate.py
-# Output: outputs/evaluation/ — confusion matrices, timelines, charts
-```
-
 ---
 
 ## Dataset
