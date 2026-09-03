@@ -50,7 +50,7 @@ source venv/bin/activate        # macOS/Linux
 ### 3. Install dependencies
 ```bash
 pip install ultralytics supervision mediapipe opencv-python numpy pandas \
-            matplotlib seaborn scikit-learn torch torchvision imbalanced-learn
+            matplotlib seaborn scikit-learn torch torchvision
 ```
 
 ---
@@ -67,15 +67,8 @@ python frame_extractor.py
 ### Step 2 — Annotate objects
 Upload frames to [Roboflow](https://roboflow.com), annotate `Person`, `Laptop`, `Phone`, export in YOLOv8 format.
 
-> **Note:** Roboflow exports classes alphabetically — `Laptop=0, Person=1, Phone=2`. The scripts use this order.
 
-### Step 3 — Split dataset
-```bash
-python dataset_splitter.py
-# Produces stratified 70/15/15 train/val/test split
-```
-
-### Step 4 — Train YOLOv8m (Google Colab recommended)
+### Step 3 — Train YOLOv8m (Google Colab recommended)
 ```python
 from ultralytics import YOLO
 model = YOLO('yolov8m.pt')
@@ -83,17 +76,24 @@ model.train(data='dataset/data.yaml', epochs=50, imgsz=640, batch=16)
 # Download best.pt and place in models/
 ```
 
+### Step 4 — Generate ground truth labels
+```bash
+python generate_ground_truth.py
+# Runs YOLOv8 + ByteTrack on extracted frames to assign track IDs
+# Output: dataset/ground_truth_labels.csv
+```
+
 ### Step 5 — Build LSTM sequences
 ```bash
 python build_sequences.py
-# Requires ground truth behaviour labels in dataset/ground_truth_labels.csv
+# Requires dataset/ground_truth_labels.csv
 # Output: dataset/sequences_X.npy, sequences_y.npy
 ```
 
 ### Step 6 — Train LSTM
 ```bash
 python train_lstm.py
-# 5-fold cross-validation with SMOTE oversampling
+# 5-fold cross-validation with inverse-frequency class weighting
 # Output: models/lstm_best.pt
 ```
 
@@ -120,12 +120,18 @@ python evaluate.py
 
 ## Dataset
 
-The dataset used in this project is not included in this repository due to privacy concerns (video footage of real participants). It consisted of:
+The datasets used in this project are not included in this repository due to privacy concerns (video footage of real participants). They consisted of:
 
+- **Dataset 1** 
 - **11 participants** recorded for ~45 minutes across 2 cameras
 - **4,804 frames** extracted at 1 FPS
 - **2,397 annotated images** for object detection (Person, Laptop, Phone)
-- **1,595 behaviour labels** across 4 classes (manually annotated)
+
+- **Dataset 2** 
+- **5 participants** recorded for  ~20 minutes across 2 camera angles
+- **2,334 frames** extracted at 1 FPS
+- **742 annotated images** for object detection (Person, Laptop, Phone)
+- **2,334 behaviour labels** across 4 classes (Focused, Chatting, Looking Away, Using Phone)
 
 ---
 
@@ -137,8 +143,7 @@ The dataset used in this project is not included in this repository due to priva
 | Multi-object tracker | ByteTrack | Handles low-confidence detections, robust to occlusion |
 | Pose estimator | BlazePose (per-crop) | Receives single-person crops from ByteTrack |
 | Behaviour classifier | LSTM | Captures temporal dependencies across frame sequences |
-| Class imbalance | SMOTE + weighted loss | Minority classes (Looking Away, Using Phone) underrepresented |
-| Validation strategy | 5-Fold CV (LSTM only) | Small behaviour dataset; standard split for YOLOv8 (larger) |
+| Validation strategy | 5-Fold CV (LSTM only) | Small behaviour dataset; standard 80/10/10 split for YOLOv8 |
 
 ---
 
@@ -150,7 +155,6 @@ The dataset used in this project is not included in this repository due to priva
 | `supervision` | ByteTrack tracking + annotation |
 | `mediapipe` | BlazePose pose estimation |
 | `torch` | LSTM model training |
-| `imbalanced-learn` | SMOTE oversampling |
 | `scikit-learn` | K-Fold, metrics, stratified splitting |
 | `opencv-python` | Frame extraction, annotation rendering |
 | `pandas / numpy` | Data processing |
